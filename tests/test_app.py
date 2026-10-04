@@ -88,6 +88,16 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Class resources", response.data)
 
+    def test_public_frontend_assets_are_served_from_root_paths(self):
+        css = self.client.get("/app.css")
+        js = self.client.get("/app.js")
+        self.assertEqual(css.status_code, 200)
+        self.assertIn(b".site-header", css.data)
+        self.assertEqual(js.status_code, 200)
+        self.assertIn(b"data-upload-form", js.data)
+        css.close()
+        js.close()
+
     def test_admin_dashboard_renders_for_admin(self):
         with self.client.session_transaction() as session:
             session["user_id"] = "admin-1"

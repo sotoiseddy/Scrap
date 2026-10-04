@@ -16,6 +16,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     url_for,
 )
@@ -52,7 +53,7 @@ PROFANE_TERMS = (
     "chup kar lavde",
 )
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.getenv("AUTH_SECRET")
 if not app.secret_key:
     raise RuntimeError("Set FLASK_SECRET_KEY (or AUTH_SECRET) before starting the app.")
@@ -672,6 +673,16 @@ def review_flag(flag_id):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/app.css")
+def stylesheet():
+    return send_from_directory("public", "app.css")
+
+
+@app.get("/app.js")
+def browser_script():
+    return send_from_directory("public", "app.js")
 
 
 @app.errorhandler(403)

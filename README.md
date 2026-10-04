@@ -67,10 +67,10 @@ python -m unittest discover -s tests -v
 
 ## Deploy to Vercel
 
-1. Import this repository as a Vercel project.
+1. Import this repository as a Vercel project. Vercel detects the root-level `app.py` Flask entrypoint automatically.
 2. Add `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `FLASK_SECRET_KEY`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` to the Vercel project environment.
 3. Run `supabase/schema.sql` once in the project's Supabase SQL Editor.
-4. Deploy. Vercel routes requests to `api/index.py`; the function uses the Flask app in `app.py`.
+4. Deploy. Vercel serves files from `public/` through its CDN and routes the Flask app through its Python runtime.
 
 Run `python seed_admin.py` locally with the same production Supabase environment values to provision the first administrator. Never put the service role key in a `NEXT_PUBLIC_`/client variable or commit it.
 
@@ -78,9 +78,9 @@ Run `python seed_admin.py` locally with the same production Supabase environment
 
 ```text
 app.py                 Flask routes, authorization, database and storage operations
-api/index.py           Vercel Python function entry point
+app.py                 Root-level Flask/Vercel entry point
 templates/             Jinja pages
-static/                Responsive styles and small browser enhancements
+public/                Responsive styles and small browser enhancements
 supabase/schema.sql    Supabase schema and private Storage bucket setup
 seed_admin.py          Idempotent initial admin provisioning
 ```
