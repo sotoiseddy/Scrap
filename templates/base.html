@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
+  <meta name="supabase-url" content="{{ supabase_url }}">
+  <meta name="supabase-anon-key" content="{{ supabase_anon_key }}">
+  <title>{% block title %}Class Event Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="{{ url_for('home') }}"><span class="brand-icon">▦</span><span>Class Event Tracker</span></a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a href="{{ url_for('home') }}">Schedule</a>
+      <a href="{{ url_for('documents') }}">Documents</a>
+      {% if user and user.role == 'admin' %}<a href="{{ url_for('admin') }}">Admin</a>{% endif %}
+      <button class="button button-quiet button-small" type="button" data-theme-toggle aria-label="Toggle color theme">◐ <span>Theme</span></button>
+      {% if user %}
+        <span class="user-label">{{ user.name or user.email }}</span>
+        <form method="post" action="{{ url_for('logout') }}" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="button button-outline button-small" type="submit">Sign out</button>
+        </form>
+      {% else %}
+        <a class="button button-primary button-small" href="{{ url_for('login') }}">Sign in</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main class="page-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack" aria-live="polite">
+          {% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">Class Event Tracker <span>·</span> Keep the week in view.</footer>
+</body>
+</html>

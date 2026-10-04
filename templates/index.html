@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Class schedule | Class Event Tracker{% endblock %}
+{% block content %}
+  {% if not classes %}
+    <section class="empty-panel">
+      <span class="empty-icon">▦</span>
+      <h1>No classes yet</h1>
+      <p>An administrator needs to create a class and assign a manager before events can be scheduled.</p>
+      {% if not user %}<a class="button button-primary" href="{{ url_for('login') }}">Sign in as administrator</a>{% endif %}
+    </section>
+  {% else %}
+    <section class="class-heading panel">
+      <div>
+        <p class="eyebrow">Class schedule</p>
+        <h1>{{ selected.name }}</h1>
+        {% if selected.description %}<p class="muted">{{ selected.description }}</p>{% endif %}
+      </div>
+      <div class="heading-actions">
+        {% if classes|length > 1 %}
+          <form method="get" action="{{ url_for('home') }}" class="class-picker">
+            <label class="sr-only" for="class_id">Select class</label>
+            <select id="class_id" name="class_id">
+              {% for item in classes %}<option value="{{ item.id }}" {% if item.id == selected.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}
+            </select>
+            <input type="hidden" name="offset" value="{{ offset }}">
+            <button class="button button-outline button-small" type="submit">Go</button>
+          </form>
+        {% endif %}
+        {% if user and (user.role == 'admin' or user.assigned_class_id == selected.id) %}
+          <span class="pill">✦ Can manage</span>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="schedule-section">
+      <div class="schedule-toolbar">
+        <p class="muted">Showing <strong>{{ anchor|short_date if anchor else '' }}</strong> through <strong>{{ end|short_date if end else '' }}</strong></p>
+        <div class="toolbar-actions">
+          {% if offset != 0 %}<a class="button button-outline button-small" href="{{ url_for('home', class_id=selected.id, offset=0) }}">Today</a>{% endif %}
+          <a class="button button-outline button-small" href="{{ url_for('home', class_id=selected.id, offset=offset - 7) }}" aria-label="Previous 7 days">←</a>
+          <a class="button button-outline button-small" href="{{ url_for('home', class_id=selected.id, offset=offset + 7) }}" aria-label="Next 7 days">→</a>
+          {% if user and (user.role == 'admin' or user.assigned_class_id == selected.id) %}
+            <button class="button button-primary button-small" type="button" data-toggle="add-event">＋ Add event</button>
+          {% endif %}
+        </div>
+      </div>
+      {% if user and (user.role == 'admin' or user.assigned_class_id == selected.id) %}
+        <form class="event-create-form panel hidden" id="add-event" method="post" action="{{ url_for('create_event') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="class_id" value="{{ selected.id }}">
+          <h2>Add an event</h2>
+          <div class="form-grid">
+            <label>Title<input name="title" maxlength="200" required placeholder="e.g. Midterm exam"></label>
+            <label>Date<input name="event_date" type="date" value="{{ anchor.isoformat() }}" required></label>
+            <label class="full-width">Description <span class="muted">(optional)</span><textarea name="description" maxlength="2000" rows="2"></textarea></label>
+            <fieldset class="color-field full-width"><legend>Category color</legend>{% for color in event_colors %}<label class="color-option"><input type="radio" name="color" value="{{ color }}" {% if loop.first %}checked{% endif %}><span class="swatch swatch-{{ color }}"></span>{{ color_labels[color] }}</label>{% endfor %}</fieldset>
+          </div>
+          <div class="form-actions"><button class="button button-primary" type="submit">Add event</button><button class="button button-outline" type="button" data-toggle="add-event">Cancel</button></div>
+        </form>
+      {% endif %}
+
+      <div class="day-grid">
+        {% for day in days %}
+          <article class="day-card {% if day.label == 'Today' %}day-today{% endif %}">
+            <header class="day-header"><div><p>{{ day.label }}</p><h2>{{ day.date|short_date }}</h2></div><span class="day-count">{{ day.events|length }}</span></header>
+            <div class="event-list">
+              {% for event in day.events %}
+                <article class="event-card event-{{ event.color }}">
+                  <span class="event-category">{{ color_labels.get(event.color, event.color|capitalize) }}</span>
+                  <h3>{{ event.title }}</h3>
+                  {% if event.description %}<p>{{ event.description }}</p>{% endif %}
+                  {% if user and (user.role == 'admin' or user.assigned_class_id == selected.id) %}
+                    <div class="event-actions">
+                      <a href="{{ url_for('edit_event', event_id=event.id) }}">Edit</a>
+                      <form method="post" action="{{ url_for('delete_event', event_id=event.id) }}" data-confirm="Delete this event?">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-button danger-text" type="submit">Delete</button>
+                      </form>
+                    </div>
+                  {% endif %}
+                </article>
+              {% else %}
+                <p class="day-empty">Nothing scheduled</p>
+              {% endfor %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Class documents | Class Event Tracker{% endblock %}
+{% block content %}
+  {% if not classes %}
+    <section class="empty-panel"><span class="empty-icon">▤</span><h1>No classes yet</h1><p>An administrator needs to create a class before documents can be uploaded.</p></section>
+  {% else %}
+    <section class="page-title-row">
+      <div><p class="eyebrow">Class resources</p><h1>{{ selected.name }}</h1><p class="muted">{{ documents|length }} documents</p></div>
+      {% if classes|length > 1 %}<form method="get" class="class-picker"><label class="sr-only" for="document_class">Select class</label><select id="document_class" name="class_id">{% for item in classes %}<option value="{{ item.id }}" {% if item.id == selected.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select><button class="button button-outline button-small">Go</button></form>{% endif %}
+    </section>
+    {% if user and (user.role == 'admin' or user.assigned_class_id == selected.id) %}
+      <form class="upload-panel panel" id="document-upload" data-upload-form data-class-id="{{ selected.id }}" data-csrf-token="{{ csrf_token }}" data-supabase-url="{{ supabase_url }}" data-supabase-anon-key="{{ supabase_anon_key }}">
+        <label class="upload-label">Upload class documents<input type="file" name="files" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,application/pdf,image/jpeg,image/png,image/webp,image/gif" required><span class="muted">PDF, JPEG, PNG, WebP, or GIF · up to 10 MB each. Files upload directly to Supabase.</span></label>
+        <button class="button button-primary" type="submit">Upload</button>
+        <span class="upload-status muted" aria-live="polite"></span>
+      </form>
+    {% endif %}
+    <div class="document-grid">
+      {% for document in documents %}
+        <article class="document-card panel">
+          <div class="document-icon">▤</div>
+          <div class="document-info"><h2>{{ document.title }}</h2><p>{{ document.file_name }}</p><span class="muted">{{ (document.size_bytes / 1024)|round(1) }} KB · {{ document.created_at[:10] }}</span></div>
+          <div class="document-actions"><a class="button button-outline button-small" href="{{ url_for('serve_document', document_id=document.id) }}" target="_blank" rel="noopener">Open</a>
+            {% if user and (user.role == 'admin' or user.assigned_class_id == selected.id) %}<form method="post" action="{{ url_for('delete_document', document_id=document.id) }}" data-confirm="Delete this document?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-danger button-small" type="submit">Delete</button></form>{% endif %}
+          </div>
+        </article>
+      {% else %}<section class="empty-panel compact"><h2>No documents yet</h2><p>Files shared with this class will appear here.</p></section>{% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}

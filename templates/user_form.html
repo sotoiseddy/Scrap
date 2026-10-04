@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Edit user | Class Event Tracker{% endblock %}
+{% block content %}
+  <section class="auth-card panel"><p class="eyebrow">User provisioning</p><h1>Edit user</h1><p class="muted">{{ user_item.email }}</p>
+    <form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Name<input name="name" maxlength="100" required value="{{ user_item.name or '' }}"></label><label>Role<select name="role"><option value="class_manager" {% if user_item.role == 'class_manager' %}selected{% endif %}>Class Manager</option><option value="admin" {% if user_item.role == 'admin' %}selected{% endif %}>Admin</option></select></label><label>Assigned class<select name="assigned_class_id"><option value="">No class</option>{% for item in classes %}<option value="{{ item.id }}" {% if item.id == user_item.assigned_class_id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label><label>New password <span class="muted">(leave blank to keep current)</span><input type="password" name="password" minlength="8" autocomplete="new-password"></label><div class="form-actions"><button class="button button-primary">Save changes</button><a class="button button-outline" href="{{ url_for('admin') }}">Cancel</a></div></form>
+  </section>
+{% endblock %}

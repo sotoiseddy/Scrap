@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Edit event | Class Event Tracker{% endblock %}
+{% block content %}
+  <section class="auth-card panel">
+    <p class="eyebrow">Schedule event</p><h1>Edit event</h1>
+    <form method="post" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Title<input name="title" required maxlength="200" value="{{ event.title }}"></label>
+      <label>Description<textarea name="description" maxlength="2000" rows="4">{{ event.description or '' }}</textarea></label>
+      <label>Date<input type="date" name="event_date" required value="{{ event.event_date }}"></label>
+      <fieldset class="color-field"><legend>Category color</legend>{% for color in event_colors %}<label class="color-option"><input type="radio" name="color" value="{{ color }}" {% if event.color == color %}checked{% endif %}><span class="swatch swatch-{{ color }}"></span>{{ color_labels[color] }}</label>{% endfor %}</fieldset>
+      <div class="form-actions"><button class="button button-primary">Save changes</button><a class="button button-outline" href="{{ url_for('home', class_id=class_id) }}">Cancel</a></div>
+    </form>
+  </section>
+{% endblock %}

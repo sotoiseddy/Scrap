@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Edit class | Class Event Tracker{% endblock %}
+{% block content %}
+  <section class="auth-card panel"><p class="eyebrow">Class management</p><h1>Edit class</h1>
+    <form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Name<input name="name" maxlength="100" required value="{{ class_item.name }}"></label><label>Description<input name="description" maxlength="1000" value="{{ class_item.description or '' }}"></label><div class="form-actions"><button class="button button-primary">Save changes</button><a class="button button-outline" href="{{ url_for('admin') }}">Cancel</a></div></form>
+  </section>
+{% endblock %}
