@@ -216,6 +216,12 @@ def get_schedule(class_id, offset):
     events = table("events").select("*").eq("class_id", class_id).gte(
         "event_date", anchor.isoformat()
     ).lte("event_date", end.isoformat()).order("created_at", desc=True).execute().data
+    creator_ids = {event["created_by"] for event in events if event.get("created_by")}
+    if creator_ids:
+        creators = table("users").select("id,name").in_("id", list(creator_ids)).execute().data
+        creator_names = {creator["id"]: creator.get("name") for creator in creators}
+        for event in events:
+            event["creator_username"] = creator_names.get(event.get("created_by"))
     by_day = {}
     for event in events:
         by_day.setdefault(event["event_date"], []).append(event)

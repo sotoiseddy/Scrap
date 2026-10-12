@@ -132,6 +132,7 @@ label { display: grid; gap: .4rem; font-weight: 600; font-size: .88rem; }
 .event-card h3 { overflow-wrap: anywhere; }
 .event-card p { margin: 0; color: var(--muted); font-size: .81rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .event-actions { display: flex; gap: .8rem; margin-top: .55rem; font-size: .78rem; font-weight: 700; }
+.event-creator { display: block; margin-top: .65rem; color: var(--muted); font-size: .7rem; text-align: right; overflow-wrap: anywhere; }
 .text-button { padding: 0; border: 0; background: none; color: var(--primary); font-weight: 700; font-size: inherit; }
 .danger-text { color: var(--danger); }
 .day-empty { margin: .6rem .2rem; color: var(--muted); font-size: .82rem; }

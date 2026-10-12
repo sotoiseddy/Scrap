@@ -28,6 +28,10 @@ class FakeQuery:
         self.filters[key] = value
         return self
 
+    def in_(self, key, values):
+        self.filters[key] = values
+        return self
+
     def gte(self, *_args, **_kwargs):
         return self
 
@@ -45,6 +49,7 @@ class FakeQuery:
                 "id": "event-1", "class_id": "class-1", "title": "Math test",
                 "description": "Chapter 2", "color": "red",
                 "event_date": application.date.today().isoformat(),
+                "created_by": "manager-1",
             }]})()
         if self.name == "documents" and self.filters.get("id") == "document-1":
             return type("Result", (), {"data": [{
@@ -62,8 +67,12 @@ class FakeQuery:
                 },
             }
             if self.filters.get("id"):
-                record = records.get(self.filters["id"])
-                return type("Result", (), {"data": [record] if record else []})()
+                user_ids = self.filters["id"]
+                if not isinstance(user_ids, list):
+                    user_ids = [user_ids]
+                return type("Result", (), {"data": [
+                    records[user_id] for user_id in user_ids if user_id in records
+                ]})()
             return type("Result", (), {"data": []})()
         return type("Result", (), {"data": []})()
 
@@ -81,6 +90,8 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Class 1", response.data)
         self.assertIn(b"Math test", response.data)
+        self.assertIn(b'<span class="event-creator">Manager</span>', response.data)
+        self.assertNotIn(b"manager@example.com", response.data)
         self.assertIn(b"Nothing scheduled", response.data)
 
     def test_public_document_library_renders(self):
@@ -105,6 +116,7 @@ class FlaskAppTests(unittest.TestCase):
         response = self.client.get("/admin")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Admin dashboard", response.data)
+        self.assertIn(b'<span class="event-creator">Manager</span>', response.data)
 
     def test_profane_content_is_detected_with_common_evasions(self):
         self.assertTrue(application.is_profane("This is sh1t"))
