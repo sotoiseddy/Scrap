@@ -8,3 +8,4 @@ __pycache__/
 .pytest_cache/
 .vercel/
 *.log
+homework_page.txt

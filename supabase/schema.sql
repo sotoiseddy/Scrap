@@ -67,11 +67,26 @@ create table if not exists public.flagged_events (
   is_reviewed boolean not null default false
 );
 
+create table if not exists public.homework (
+  homework_id text primary key,
+  title text,
+  subject text,
+  teacher text,
+  assigned_date text,
+  due_date text,
+  description text,
+  details_text text not null,
+  attachment_urls jsonb not null default '[]'::jsonb,
+  source_url text not null,
+  last_synced_at timestamptz not null default now()
+);
+
 alter table public.classes enable row level security;
 alter table public.users enable row level security;
 alter table public.events enable row level security;
 alter table public.documents enable row level security;
 alter table public.flagged_events enable row level security;
+alter table public.homework enable row level security;
 
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('class-documents', 'class-documents', false, 10485760)

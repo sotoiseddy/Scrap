@@ -64,6 +64,20 @@ python -m unittest discover -s tests -v
 | `FLASK_SECRET_KEY` | Long random secret for Flask sessions (or `AUTH_SECRET`) |
 | `ADMIN_EMAIL` | Initial admin email used by `seed_admin.py` |
 | `ADMIN_PASSWORD` | Initial admin password; at least 8 characters |
+| `PORTAL_COOKIE` | Authenticated `mcsuna.in` session cookie used by `sync_homework.py` |
+| `HOMEWORK_URL` | Optional homework list URL on `mcsuna.in` (defaults to the standard page) |
+
+## Automated homework sync
+
+The GitHub Actions workflow runs `sync_homework.py` on every push to `main` (including the initial deployment), every six hours (00:00, 06:00, 12:00, and 18:00 UTC), and manually from the repository's Actions tab. Scheduled runs may be delayed by GitHub. It runs in Actions rather than Flask startup so Vercel cold starts and autoscaling do not launch duplicate syncs or block web requests.
+
+Before enabling it:
+
+1. Run the updated `supabase/schema.sql` so the `homework` table exists.
+2. In the GitHub repository settings, add Actions secrets named `PORTAL_COOKIE`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. Optionally add `HOMEWORK_URL` to override the default homework page. Keep the portal cookie and service-role key secret; the sync writes directly to Supabase.
+3. Ensure GitHub Actions is enabled for the repository.
+
+For a one-time local run, set those values in `.env` and run `python sync_homework.py`. The generated `homework_page.txt` may contain private student information and is excluded from Git.
 
 ## Deploy to Vercel
 
@@ -79,8 +93,10 @@ Run `python seed_admin.py` locally with the same production Supabase environment
 ```text
 app.py                 Flask routes, authorization, database and storage operations
 app.py                 Root-level Flask/Vercel entry point
+sync_homework.py       Authenticated homework scraper and Supabase sync
 templates/             Jinja pages
 public/                Responsive styles and small browser enhancements
 supabase/schema.sql    Supabase schema and private Storage bucket setup
 seed_admin.py          Idempotent initial admin provisioning
+.github/workflows/     Six-hour homework sync schedule
 ```
