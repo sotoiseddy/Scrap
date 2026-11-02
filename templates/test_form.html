@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Edit test | Class Event Tracker{% endblock %}
+{% block content %}
+  <section class="auth-card panel">
+    <p class="eyebrow">Automated test</p><h1>Edit test</h1>
+    <form method="post" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Title<input name="title" maxlength="500" value="{{ test.title or '' }}"></label>
+      <label>Subject<input name="subject" maxlength="200" value="{{ test.subject or '' }}"></label>
+      <label>Teacher<input name="teacher" maxlength="200" value="{{ test.teacher or '' }}"></label>
+      <label>Assigned date<input type="date" name="assigned_date" value="{{ test.assigned_date or '' }}"></label>
+      <label>Due date<input type="date" name="due_date" value="{{ test.due_date or '' }}"></label>
+      <label>Description<textarea name="description" maxlength="5000" rows="3">{{ test.description or '' }}</textarea></label>
+      <label>Details<textarea name="details_text" maxlength="10000" rows="5">{{ test.details_text or '' }}</textarea></label>
+      <label>Date status<select name="date_status">{% for status in ['confirmed', 'inferred', 'needs_review', 'rejected'] %}<option value="{{ status }}" {% if test.date_status == status %}selected{% endif %}>{{ status|capitalize }}</option>{% endfor %}</select></label>
+      <div class="form-actions"><button class="button button-primary">Save changes</button><a class="button button-outline" href="{{ url_for('admin') }}">Cancel</a></div>
+    </form>
+  </section>
+{% endblock %}

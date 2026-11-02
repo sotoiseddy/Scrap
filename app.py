@@ -41,18 +41,6 @@ ALLOWED_MIME_TYPES = {
 }
 MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
 BUCKET_NAME = os.getenv("SUPABASE_STORAGE_BUCKET", "class-documents")
-PROFANE_TERMS = (
-    "fuck", "fck", "fvck", "fuk", "fucker", "fucking", "shit", "sh1t", "bitch",
-    "bastard", "dick", "dickhead", "pussy", "asshole", "a$$hole", "ass",
-    "motherfucker", "whore", "slut", "cunt", "cock", "jerkoff", "madarchod",
-    "maderchod", "maa chod", "ma chod", "behenchod", "bhenchod", "bhen chhod",
-    "chutiya", "chutia", "chutiyapa", "gandu", "gand", "harami", "randi",
-    "lund", "lauda", "lawda", "lavda", "lavde", "gaand", "chodu", "chhod",
-    "bhadwa", "kamina", "kameena", "suar", "kutti", "kutta", "teri maa di",
-    "teri ma di", "bhen de", "bhen da", "pen de", "pen da", "puth", "puttar",
-    "chup kar lavde",
-)
-
 app = Flask(__name__, static_folder=None)
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.getenv("AUTH_SECRET")
 if not app.secret_key:
@@ -173,42 +161,6 @@ def find_one(name, record_id):
     return rows[0] if rows else None
 
 
-def normalize_content(value):
-    value = value.lower().replace("’", "'").replace("‘", "'")
-    value = re.sub(r"[a-z0-9@$!]", lambda m: {
-        "@": "a", "4": "a", "3": "e", "0": "o", "1": "i",
-        "!": "i", "5": "s", "$": "s",
-    }.get(m.group(0), m.group(0)), value)
-    value = re.sub(r"[^a-z0-9]+", "", value)
-    value = re.sub(r"(.)\1+", r"\1", value)
-    return value.replace("fvck", "fuck")
-
-
-def is_profane(value):
-    if not value:
-        return False
-    normalized = normalize_content(value)
-    for word in PROFANE_TERMS:
-        term = normalize_content(word)
-        if word == "ass":
-            if any(normalize_content(token) == term for token in value.split()):
-                return True
-        elif term and term in normalized:
-            return True
-    return False
-
-
-def flag_submission(user, class_id, title, description, color, event_date):
-    table("flagged_events").insert({
-        "class_id": class_id,
-        "title": title[:200],
-        "description": description[:2000] if description else None,
-        "color": color,
-        "event_date": event_date,
-        "submitted_by": user["id"],
-    }).execute()
-
-
 def get_schedule(class_id, offset):
     today = local_today()
     anchor = today + timedelta(days=offset)
@@ -216,6 +168,11 @@ def get_schedule(class_id, offset):
     events = table("events").select("*").eq("class_id", class_id).gte(
         "event_date", anchor.isoformat()
     ).lte("event_date", end.isoformat()).order("created_at", desc=True).execute().data
+    tests = table("tests").select("*").gte(
+        "due_date", anchor.isoformat()
+    ).lte("due_date", end.isoformat()).in_(
+        "date_status", ["confirmed", "inferred"]
+    ).execute().data
     creator_ids = {event["created_by"] for event in events if event.get("created_by")}
     if creator_ids:
         creators = table("users").select("id,name").in_("id", list(creator_ids)).execute().data
@@ -225,6 +182,9 @@ def get_schedule(class_id, offset):
     by_day = {}
     for event in events:
         by_day.setdefault(event["event_date"], []).append(event)
+    tests_by_day = {}
+    for test in tests:
+        tests_by_day.setdefault(test["due_date"], []).append(test)
     days = []
     for index in range(7):
         day = anchor + timedelta(days=index)
@@ -233,6 +193,7 @@ def get_schedule(class_id, offset):
             "date_key": day.isoformat(),
             "label": "Today" if day == today else day.strftime("%A"),
             "events": by_day.get(day.isoformat(), []),
+            "tests": tests_by_day.get(day.isoformat(), []),
         })
     return anchor, end, days
 
@@ -304,10 +265,6 @@ def create_event():
         color = request.form.get("color", "blue")
         if color not in EVENT_COLORS:
             raise ValueError("Choose a valid event color.")
-        if is_profane(title) or is_profane(description):
-            flag_submission(current_user(), class_id, title, description, color, event_date.isoformat())
-            flash("That event was blocked and sent to the admin moderation queue.", "error")
-            return redirect(url_for("home", class_id=class_id))
         table("events").insert({
             "class_id": class_id, "title": title, "description": description,
             "color": color, "event_date": event_date.isoformat(),
@@ -335,16 +292,12 @@ def edit_event(event_id):
             color = request.form.get("color", "")
             if color not in EVENT_COLORS:
                 raise ValueError("Choose a valid event color.")
-            if is_profane(title) or is_profane(description):
-                flag_submission(current_user(), event["class_id"], title, description, color, event_date.isoformat())
-                flash("That change was blocked and sent to the admin moderation queue.", "error")
-            else:
-                table("events").update({
-                    "title": title, "description": description, "event_date": event_date.isoformat(),
-                    "color": color, "updated_by": current_user()["id"],
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", event_id).execute()
-                flash("Event updated.", "success")
+            table("events").update({
+                "title": title, "description": description, "event_date": event_date.isoformat(),
+                "color": color, "updated_by": current_user()["id"],
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", event_id).execute()
+            flash("Event updated.", "success")
         except ValueError as error:
             flash(str(error), "error")
         return redirect(url_for("home", class_id=event["class_id"]))
@@ -362,6 +315,40 @@ def delete_event(event_id):
     table("events").delete().eq("id", event_id).execute()
     flash("Event deleted.", "success")
     return redirect(url_for("home", class_id=event["class_id"]))
+
+
+@app.route("/admin/tests/<test_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_test(test_id):
+    results = table("tests").select("*").eq("test_id", test_id).limit(1).execute().data
+    test = results[0] if results else None
+    if not test:
+        abort(404)
+    if request.method == "POST":
+        try:
+            title = form_text("title", maximum=500) or None
+            subject = form_text("subject", maximum=200) or None
+            teacher = form_text("teacher", maximum=200) or None
+            assigned_date_value = form_text("assigned_date")
+            due_date_value = form_text("due_date")
+            assigned_date = date.fromisoformat(assigned_date_value).isoformat() if assigned_date_value else None
+            due_date = date.fromisoformat(due_date_value).isoformat() if due_date_value else None
+            description = form_text("description", maximum=5000) or None
+            details_text = form_text("details_text", maximum=10000) or None
+            date_status = request.form.get("date_status", "")
+            if date_status not in {"confirmed", "inferred", "needs_review", "rejected"}:
+                raise ValueError("Choose a valid date status.")
+            table("tests").update({
+                "title": title, "subject": subject, "teacher": teacher,
+                "assigned_date": assigned_date, "due_date": due_date,
+                "description": description, "details_text": details_text,
+                "date_status": date_status,
+            }).eq("test_id", test_id).execute()
+            flash("Test updated.", "success")
+            return redirect(url_for("admin"))
+        except ValueError as error:
+            flash(str(error), "error")
+    return render_template("test_form.html", test=test)
 
 
 @app.get("/documents")
@@ -499,7 +486,9 @@ def admin():
     users = table("users").select("id,email,name,role,assigned_class_id,is_banned,created_at").order(
         "created_at", desc=True
     ).execute().data
-    flagged = table("flagged_events").select("*").order("submitted_at", desc=True).execute().data
+    review_tests = table("tests").select("*").eq("date_status", "needs_review").order(
+        "due_date"
+    ).execute().data
     class_id = request.args.get("class_id")
     if class_id not in {item["id"] for item in all_classes}:
         class_id = all_classes[0]["id"] if all_classes else None
@@ -510,7 +499,7 @@ def admin():
     selected = next((item for item in all_classes if item["id"] == class_id), None)
     anchor, end, days = get_schedule(class_id, offset) if selected else (None, None, [])
     return render_template(
-        "admin.html", classes=all_classes, users=users, flagged=flagged,
+        "admin.html",         classes=all_classes, users=users, review_tests=review_tests,
         selected=selected, days=days, anchor=anchor, end=end, offset=offset,
         class_names={item["id"]: item["name"] for item in all_classes},
     )
@@ -663,16 +652,6 @@ def unban_user(user_id):
         abort(404)
     table("users").update({"is_banned": False}).eq("id", user_id).execute()
     flash("User unbanned.", "success")
-    return redirect(url_for("admin"))
-
-
-@app.post("/admin/flagged/<flag_id>/review")
-@admin_required
-def review_flag(flag_id):
-    if not find_one("flagged_events", flag_id):
-        abort(404)
-    table("flagged_events").update({"is_reviewed": True}).eq("id", flag_id).execute()
-    flash("Submission marked reviewed.", "success")
     return redirect(url_for("admin"))
 
 

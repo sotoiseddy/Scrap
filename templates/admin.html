@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Admin | Class Event Tracker{% endblock %}
 {% block content %}
-  <div class="page-title-row"><div><p class="eyebrow">Administration</p><h1>Admin dashboard</h1><p class="muted">Manage classes, users, schedules, and moderation.</p></div></div>
+  <div class="page-title-row"><div><p class="eyebrow">Administration</p><h1>Admin dashboard</h1><p class="muted">Manage classes, users, schedules, and test date reviews.</p></div></div>
 
   <div class="admin-grid">
     <section class="panel admin-panel">
@@ -14,6 +14,17 @@
       </form>
       <ul class="manage-list">
         {% for item in classes %}<li><div><strong>{{ item.name }}</strong>{% if item.description %}<small>{{ item.description }}</small>{% endif %}</div><div class="row-actions"><a href="{{ url_for('edit_class', class_id=item.id) }}">Edit</a><form method="post" action="{{ url_for('delete_class', class_id=item.id) }}" data-confirm="Delete this class and all its events and documents?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-button danger-text">Delete</button></form></div></li>{% else %}<li class="muted">No classes yet.</li>{% endfor %}
+      </ul>
+    </section>
+
+    <section class="panel admin-panel">
+      <div class="section-heading"><div><h2>Tests needing date review</h2><p class="muted">Confirm or correct the dates, then update the status to confirmed or inferred.</p></div></div>
+      <ul class="manage-list">
+        {% for test in review_tests %}
+          <li><div><strong>{{ test.title or test.subject or 'Test' }}</strong><small>{% if test.subject %}{{ test.subject }} · {% endif %}Due date: {{ test.due_date or 'Not set' }}{% if test.teacher %} · {{ test.teacher }}{% endif %}</small>{% if test.description or test.details_text %}<small>{{ test.description or test.details_text }}</small>{% endif %}</div><a href="{{ url_for('edit_test', test_id=test.test_id) }}">Edit and review</a></li>
+        {% else %}
+          <li class="muted">No tests need date review.</li>
+        {% endfor %}
       </ul>
     </section>
 
@@ -46,17 +57,18 @@
       </div></div>
       {% if request.args.get('preview') != 'manager' %}<form class="event-create-form panel" method="post" action="{{ url_for('create_event') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="class_id" value="{{ selected.id }}"><h3>Add event to {{ selected.name }}</h3><div class="form-grid"><label>Title<input name="title" required maxlength="200"></label><label>Date<input type="date" name="event_date" value="{{ anchor.isoformat() }}" required></label><label class="full-width">Description<textarea name="description" maxlength="2000" rows="2"></textarea></label><fieldset class="color-field full-width"><legend>Color</legend>{% for color in event_colors %}<label class="color-option"><input type="radio" name="color" value="{{ color }}" {% if loop.first %}checked{% endif %}><span class="swatch swatch-{{ color }}"></span>{{ color_labels[color] }}</label>{% endfor %}</fieldset></div><button class="button button-primary button-small">Add event</button></form>{% endif %}
       <div class="day-grid">
-        {% for day in days %}<article class="day-card"><header class="day-header"><div><p>{{ day.label }}</p><h2>{{ day.date|short_date }}</h2></div><span class="day-count">{{ day.events|length }}</span></header><div class="event-list">
-          {% for event in day.events %}<article class="event-card event-{{ event.color }}"><span class="event-category">{{ color_labels.get(event.color, event.color|capitalize) }}</span><h3>{{ event.title }}</h3>{% if event.description %}<p>{{ event.description }}</p>{% endif %}{% if request.args.get('preview') != 'manager' %}<div class="event-actions"><a href="{{ url_for('edit_event', event_id=event.id) }}">Edit</a><form method="post" action="{{ url_for('delete_event', event_id=event.id) }}" data-confirm="Delete this event?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-button danger-text">Delete</button></form></div>{% endif %}{% if event.creator_username %}<span class="event-creator">{{ event.creator_username }}</span>{% endif %}</article>{% else %}<p class="day-empty">Nothing scheduled</p>{% endfor %}
+        {% for day in days %}<article class="day-card"><header class="day-header"><div><p>{{ day.label }}</p><h2>{{ day.date|short_date }}</h2></div><span class="day-count">{{ day.events|length + day.tests|length }}</span></header><div class="event-list">
+          {% for event in day.events %}<article class="event-card event-{{ event.color }}"><span class="event-category">{{ color_labels.get(event.color, event.color|capitalize) }}</span><h3>{{ event.title }}</h3>{% if event.description %}<p>{{ event.description }}</p>{% endif %}{% if request.args.get('preview') != 'manager' %}<div class="event-actions"><a href="{{ url_for('edit_event', event_id=event.id) }}">Edit</a><form method="post" action="{{ url_for('delete_event', event_id=event.id) }}" data-confirm="Delete this event?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-button danger-text">Delete</button></form></div>{% endif %}{% if event.creator_username %}<span class="event-creator">{{ event.creator_username }}</span>{% endif %}</article>{% endfor %}
+          {% for test in day.tests %}<article class="event-card event-red"><span class="event-category">{{ test.date_status|capitalize }} test</span><h3>{{ test.title or test.subject or 'Test' }}</h3>{% if test.subject or test.teacher %}<p>{% if test.subject %}{{ test.subject }}{% endif %}{% if test.subject and test.teacher %} · {% endif %}{% if test.teacher %}{{ test.teacher }}{% endif %}</p>{% endif %}{% if test.description or test.details_text %}<p>{{ test.description or test.details_text }}</p>{% endif %}<div class="event-actions"><a href="{{ url_for('edit_test', test_id=test.test_id) }}">Edit</a></div><span class="event-creator">Automated</span></article>{% endfor %}
+          {% if not day.events and not day.tests %}<p class="day-empty">Nothing scheduled</p>{% endif %}
         </div></article>{% endfor %}
       </div>
     {% else %}<p class="muted">Create a class to start scheduling.</p>{% endif %}
   </section>
 
   <section class="panel admin-panel moderation-panel">
-    <div class="section-heading"><div><h2>Moderation</h2><p class="muted">Review blocked submissions and restore accounts if appropriate.</p></div></div>
+    <div class="section-heading"><div><h2>Account moderation</h2><p class="muted">Manage banned accounts.</p></div></div>
     <div class="admin-grid">
-      <div><h3>Flagged submissions</h3><ul class="manage-list">{% for item in flagged %}<li><div><strong>{{ item.title }}</strong><small>{{ item.event_date }} · {{ class_names.get(item.class_id, 'Deleted class') }} · {{ item.submitted_at[:10] }}</small>{% if item.description %}<small>{{ item.description }}</small>{% endif %}</div>{% if item.is_reviewed %}<span class="pill">Reviewed</span>{% else %}<form method="post" action="{{ url_for('review_flag', flag_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-outline button-small">Mark reviewed</button></form>{% endif %}</li>{% else %}<li class="muted">No flagged submissions.</li>{% endfor %}</ul></div>
       <div><h3>Banned users</h3><ul class="manage-list">{% for item in users if item.is_banned %}<li><div><strong>{{ item.name or item.email }}</strong><small>{{ item.email }}</small></div><form method="post" action="{{ url_for('unban_user', user_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-outline button-small">Unban</button></form></li>{% else %}<li class="muted">No banned users.</li>{% endfor %}</ul><h3 class="subheading">Ban an account</h3><ul class="manage-list">{% for item in users if not item.is_banned and item.id != user.id %}<li><div><strong>{{ item.name or item.email }}</strong><small>{{ item.email }}</small></div><form method="post" action="{{ url_for('ban_user', user_id=item.id) }}" data-confirm="Ban this user?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button button-danger button-small">Ban</button></form></li>{% else %}<li class="muted">No eligible accounts.</li>{% endfor %}</ul></div>
     </div>
   </section>

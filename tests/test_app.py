@@ -21,6 +21,10 @@ class FakeQuery:
         INSERTED.append((self.name, values))
         return self
 
+    def update(self, values):
+        INSERTED.append((self.name, values))
+        return self
+
     def order(self, *_args, **_kwargs):
         return self
 
@@ -44,6 +48,35 @@ class FakeQuery:
     def execute(self):
         if self.name == "classes":
             return type("Result", (), {"data": [{"id": "class-1", "name": "Class 1", "description": None}]})()
+        if self.name == "tests":
+            records = [
+                {
+                    "test_id": "test-confirmed", "title": "Physics exam", "subject": "Physics",
+                    "teacher": "Teacher", "due_date": application.date.today().isoformat(),
+                    "assigned_date": None, "description": None, "details_text": None,
+                    "source_url": "https://example.com", "date_status": "confirmed",
+                },
+                {
+                    "test_id": "test-inferred", "title": "Chemistry exam", "subject": "Chemistry",
+                    "due_date": application.date.today().isoformat(), "date_status": "inferred",
+                },
+                {
+                    "test_id": "test-review", "title": "Unconfirmed exam",
+                    "due_date": application.date.today().isoformat(), "date_status": "needs_review",
+                },
+            ]
+            test_id = self.filters.get("test_id")
+            if test_id:
+                records = [record for record in records if record["test_id"] == test_id]
+            statuses = self.filters.get("date_status")
+            return type("Result", (), {"data": [
+                record for record in records
+                if statuses is None or (
+                    record["date_status"] in statuses
+                    if isinstance(statuses, list)
+                    else record["date_status"] == statuses
+                )
+            ]})()
         if self.name == "events":
             return type("Result", (), {"data": [{
                 "id": "event-1", "class_id": "class-1", "title": "Math test",
@@ -90,6 +123,12 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Class 1", response.data)
         self.assertIn(b"Math test", response.data)
+        self.assertIn(b"Physics exam", response.data)
+        self.assertIn(b"Chemistry exam", response.data)
+        self.assertNotIn(b"Unconfirmed exam", response.data)
+        self.assertIn(b"Automated", response.data)
+        self.assertNotIn(b">Source<", response.data)
+        self.assertIn(b'class="event-card event-red"', response.data)
         self.assertIn(b'<span class="event-creator">Manager</span>', response.data)
         self.assertNotIn(b"manager@example.com", response.data)
         self.assertIn(b"Nothing scheduled", response.data)
@@ -117,11 +156,61 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Admin dashboard", response.data)
         self.assertIn(b'<span class="event-creator">Manager</span>', response.data)
+        self.assertIn(b"Physics exam", response.data)
+        self.assertIn(b"Automated", response.data)
+        self.assertIn(b'href="/admin/tests/test-confirmed/edit">Edit</a>', response.data)
+        self.assertLess(
+            response.data.index(b"Class management"),
+            response.data.index(b"Tests needing date review"),
+        )
+        self.assertLess(
+            response.data.index(b"Tests needing date review"),
+            response.data.index(b"User provisioning"),
+        )
 
-    def test_profane_content_is_detected_with_common_evasions(self):
-        self.assertTrue(application.is_profane("This is sh1t"))
-        self.assertTrue(application.is_profane("f.v.c.k"))
-        self.assertFalse(application.is_profane("class assignment"))
+    def test_admin_can_edit_tests_from_main_page(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = "admin-1"
+            session["csrf_token"] = "csrf-test-token"
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'href="/admin/tests/test-confirmed/edit">Edit</a>', response.data)
+
+    def test_class_manager_cannot_edit_tests_from_main_page(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = "manager-1"
+            session["csrf_token"] = "csrf-test-token"
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(b'href="/admin/tests/test-confirmed/edit">Edit</a>', response.data)
+
+    def test_admin_can_edit_test(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = "admin-1"
+            session["csrf_token"] = "csrf-test-token"
+        response = self.client.post("/admin/tests/test-confirmed/edit", data={
+            "csrf_token": "csrf-test-token",
+            "title": "Updated physics exam",
+            "subject": "Physics",
+            "teacher": "Teacher",
+            "assigned_date": "",
+            "due_date": application.date.today().isoformat(),
+            "description": "",
+            "details_text": "Updated details",
+            "date_status": "rejected",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(INSERTED[-1][0], "tests")
+        self.assertEqual(INSERTED[-1][1]["title"], "Updated physics exam")
+        self.assertEqual(INSERTED[-1][1]["details_text"], "Updated details")
+        self.assertEqual(INSERTED[-1][1]["date_status"], "rejected")
+
+    def test_class_manager_cannot_edit_test(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = "manager-1"
+            session["csrf_token"] = "csrf-test-token"
+        response = self.client.get("/admin/tests/test-confirmed/edit")
+        self.assertEqual(response.status_code, 403)
 
     def test_mutation_requires_csrf_token(self):
         response = self.client.post("/events/create", data={"class_id": "class-1"})
@@ -155,7 +244,7 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(INSERTED[0][0], "events")
         self.assertEqual(INSERTED[0][1]["title"], "Science quiz")
 
-    def test_blocked_event_is_added_to_moderation_queue(self):
+    def test_event_with_previously_blocked_content_is_created(self):
         with self.client.session_transaction() as session:
             session["user_id"] = "manager-1"
             session["csrf_token"] = "csrf-test-token"
@@ -167,8 +256,18 @@ class FlaskAppTests(unittest.TestCase):
             "color": "red",
         })
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(INSERTED[0][0], "flagged_events")
+        self.assertEqual(INSERTED[0][0], "events")
         self.assertEqual(INSERTED[0][1]["title"], "sh1t")
+
+    def test_admin_dashboard_lists_tests_needing_review(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = "admin-1"
+            session["csrf_token"] = "csrf-test-token"
+        response = self.client.get("/admin")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Tests needing date review", response.data)
+        self.assertIn(b"Unconfirmed exam", response.data)
+        self.assertIn(b'href="/admin/tests/test-review/edit">Edit and review</a>', response.data)
 
     def test_signed_upload_returns_direct_supabase_upload_data(self):
         class FakeBucket:

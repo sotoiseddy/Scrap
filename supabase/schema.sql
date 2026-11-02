@@ -55,18 +55,6 @@ create table if not exists public.documents (
 );
 create index if not exists documents_class_idx on public.documents(class_id);
 
-create table if not exists public.flagged_events (
-  id uuid primary key default gen_random_uuid(),
-  class_id uuid references public.classes(id) on delete set null,
-  title text not null,
-  description text,
-  color text not null,
-  event_date text not null,
-  submitted_by uuid references public.users(id) on delete set null,
-  submitted_at timestamptz not null default now(),
-  is_reviewed boolean not null default false
-);
-
 create table if not exists public.homework (
   homework_id text primary key,
   title text,
@@ -85,7 +73,6 @@ alter table public.classes enable row level security;
 alter table public.users enable row level security;
 alter table public.events enable row level security;
 alter table public.documents enable row level security;
-alter table public.flagged_events enable row level security;
 alter table public.homework enable row level security;
 
 insert into storage.buckets (id, name, public, file_size_limit)
